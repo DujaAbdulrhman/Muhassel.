@@ -131,7 +131,7 @@ public class TaxReportsController {
         return ResponseEntity.status(200).body(taxReportsService.getPaymentStatusByReportId(myUser.getId(),reportId));
     }
 
-    // DUJA-9
+    // DUJA-10
     //Send a remainder email to the taxPayer to let it know the payment in about to come
     @GetMapping("/notify-upcoming-payment")
     public ResponseEntity<String> notifyUpcomingPayments() {
@@ -145,7 +145,7 @@ public class TaxReportsController {
     public ResponseEntity printTaxReportForEveryBusinesses(@AuthenticationPrincipal MyUser myUser){
         return ResponseEntity.status(200).body(taxReportsService.printTaxReportForEveryBusinesses(myUser.getId()));
     }
-    //DUJA-10
+    //DUJA-11
     ///Auth-> TaxPayer
     @GetMapping("/print/{reportId}")
     public ResponseEntity<byte[]> printTaxReportAsPdf(@AuthenticationPrincipal MyUser myUser, @PathVariable Integer reportId) {
