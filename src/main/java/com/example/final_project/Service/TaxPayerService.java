@@ -196,7 +196,7 @@ public class TaxPayerService {
             phone = phone.substring(1);
         }
         String fullPhoneNumber = "966" + phone;
-        //خليتها كومنت عشان السيرفس شايله الAPI عشان ما يتبلك الرقم وعشان اقدر ارفعه
+
         whatsAppService.sendAccountantActivationMessage(
                 accountantDTO.getUsername(),
                 accountantDTO.getPassword(),
