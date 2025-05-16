@@ -18,18 +18,32 @@ Users:
 
 Personal endpoints:
 
-1. Add AccountantCreates a new accountant under a taxpayer and business. Sends login credentials to the accountant's email.
-2. Create Counter BoxInitializes a new counter box typically used by accountants to manage their daily operations.
-3. Open Counter BoxAllows the authenticated accountant to open their assigned counter box at the start of their shift
-4.Open Counter BoxAllows the authenticated accountant to open their assigned counter box at the start of their shift
-5. Close Counter BoxCloses the accountant’s counter box and calculates the total number of hours it was open
-6. Sales Summary by BranchCalculates and returns the total sales amount before tax, the tax amount (15%), and the final total for a specific branch.
- 7.Update Product Quantity in SaleAllows an accountant to update the quantity of a product in an unconfirmed sale, with stock validation and price recalculation
-8. Get Accountants by Taxpayer IDReturns a structured list of all accountants linked to a specific taxpayer.
-9. Delete AccountantDeletes an accountant if they are not assigned to any open counter box or associated data.
-1010.Get Tax Report as PDFGenerates a PDF file of a tax report, includes business logo if available, and ensures access control.
- 11. Notify Upcoming PaymentsA scheduled background task that sends reminder emails to taxpayers 3 days before a report’s payment due date.
+Delete Accountant
+Allows deletion of an accountant only if they are not associated with any active counter boxes. Prevents deletion if any box is still open.
 
+Sales Summary by Branch
+Returns a financial summary for a specific branch, including total sales before tax, tax amount (15%), and the grand total.
+
+Create Counter Box
+Creates a new counter box for an accountant and links it to the relevant branch, initializing it with a "Closed" status.
+
+Open Counter Box
+Opens a counter box and updates the accountant’s last activity timestamp.
+
+Close Counter Box (Basic)
+Closes the counter box without calculating its duration of activity.
+
+Close Counter Box with Duration Calculation
+Closes the counter box and returns the total duration it remained open in hours and minutes.
+
+List Accountants by Taxpayer
+Retrieves a simplified list of accountants associated with a specific taxpayer, including their status and branch ID.
+
+Upcoming Payment Notification
+Automatically sends email reminders to taxpayers whose tax reports are due within the next three days (excluding paid reports).
+
+WhatsApp Activation Message
+When a new accountant is registered, a WhatsApp activation message is automatically sent to notify them and guide them through activation.
 
 
 
