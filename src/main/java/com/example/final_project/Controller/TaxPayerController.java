@@ -55,6 +55,7 @@ public class TaxPayerController {
     /// 13
     // authority -> TaxPayer
     //sahar - 1
+    //DUJA -8 sending the whatsapp massage
     @PostMapping("/add-accountant/{businessId}") //last edit
     public ResponseEntity addAccountant (@RequestBody @Valid AccountantDTO accountantDTO, @AuthenticationPrincipal MyUser taxPayer,@PathVariable Integer businessId){
         taxPayerService.addAccountant(taxPayer.getId(),businessId,accountantDTO);
@@ -79,7 +80,7 @@ public class TaxPayerController {
         return ResponseEntity.status(200).body(new ApiResponse("accountant is nonActive"));
     }
 
-    //DUJA-8
+    //DUJA-9
     // Displays all accountants associated with the taxpayer across all branches affiliated with him
     @GetMapping("/taxpayers/accountants")
     public ResponseEntity<List<Map<String, Object>>> getAccountantsByTaxPayerId(@PathVariable Integer taxPayerId) {
