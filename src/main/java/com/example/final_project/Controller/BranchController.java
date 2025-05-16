@@ -59,13 +59,7 @@ public class BranchController {
         return ResponseEntity.status(200).body(branchService.getSalesSummaryByBranch(taxPayer.getId(),branchId));
     }
 
-    // authority -> TaxPayer
-    // Endpoint 12
-    /*@GetMapping("/get-tax-payer-branches")
-    public ResponseEntity getAllTaxPayerBranches(@AuthenticationPrincipal MyUser myUser){
-        return ResponseEntity.status(200).body(branchService.getTaxPayerBranches(myUser.getId()));
-    }*/
-
+   
 
 
 }
