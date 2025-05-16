@@ -12,7 +12,6 @@ import com.example.final_project.Model.*;
 import com.example.final_project.Notification.NotificationService;
 import com.example.final_project.Repository.*;
 import lombok.RequiredArgsConstructor;
-//import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.jdbc.support.JdbcAccessor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -42,14 +41,16 @@ public class TaxPayerService {
     private final JdbcAccessor jdbcAccessor;
 
 
-    //    private final WhatsAppService whatsAppService;
     private final CounterBoxRepository counterBoxRepository;
     private final BranchRepository branchRepository;
-    //  private final WhatsAppService whatsAppService;
+    private final WhatsAppService whatsAppService;
 
 
     /// run by admin
     public void activateTP(Integer adminId, Integer taxPayerId) {
+        MyUser admin = myUserRepository.findUserByIdAndRole(adminId,"ADMIN");
+        if (admin==null)
+            throw new ApiException("you don't have permission");
         TaxPayer taxPayer = taxPayerRepository.findTaxBuyerById(taxPayerId);
         if (taxPayer == null) {
             throw new ApiException("Tax Payer is not found");
@@ -143,18 +144,14 @@ public class TaxPayerService {
 
 
     public void addAccountant(Integer taxPayerID, Integer businessId, AccountantDTO accountantDTO) {
-
         TaxPayer taxPayer = taxPayerRepository.findTaxBuyerById(taxPayerID);
         if (taxPayer == null) {
             throw new ApiException("The Taxpayer is not found");
         }
-
-
         Business business1 = businessRepository.findBusinessByIdAndTaxPayer(businessId, taxPayer);
         if (business1 == null) {
             throw new ApiException("Business is not found or does not belong to tax payer");
         }
-
 
         MyUser myUserACC = new MyUser();
         myUserACC.setRole("ACCOUNTANT");
@@ -181,7 +178,7 @@ public class TaxPayerService {
                 "\n" +
                 "Username: \n" + accountant.getMyUser().getUsername() +
                 "\n" +
-                "Password:\n" + accountant.getMyUser().getPassword() +
+                "Password:\n" + accountantDTO.getPassword() +
                 "\n" +
                 "Employee Code:\n" + accountant.getEmployeeId() +
                 "\n" +
@@ -200,13 +197,14 @@ public class TaxPayerService {
         }
         String fullPhoneNumber = "966" + phone;
         //خليتها كومنت عشان السيرفس شايله الAPI عشان ما يتبلك الرقم وعشان اقدر ارفعه
-        /*whatsAppService.sendAccountantActivationMessage(
-                accountant.getUser().getUsername(),
-                accountant.getUser().getPassword(),
-                accountant.getEmployeeId(),
+        whatsAppService.sendAccountantActivationMessage(
+                accountantDTO.getUsername(),
+                accountantDTO.getPassword(),
+                accountantDTO.getEmployeeId(),
                 fullPhoneNumber,
                 LocalDate.now()
-        );*/
+        );
+
 
 
         notificationService.sendEmail(accountant.getMyUser().getEmail(), subject, message);
@@ -247,6 +245,10 @@ public class TaxPayerService {
             throw new ApiException("Accountant is not found or not active");
         }
 
+        if(taxPayer.getId()!=accountant.getBusiness().getTaxPayer().getId()){
+            throw new ApiException("tax payer not  belong to tax business");
+
+        }
         Business business = businessRepository.findBusinessByIdAndTaxPayer(accountant.getBusiness().getId(), taxPayer);
         if (!business.getIsActive()) {
             throw new ApiException("Your business that is related to this branch is not active");
@@ -318,6 +320,7 @@ public class TaxPayerService {
             throw new ApiException("The business is not found");
         }
 
+
         LocalDateTime startDate = LocalDateTime.of(year, Month.JANUARY, 1, 0, 0);
         LocalDateTime endDate = LocalDateTime.of(year, Month.DECEMBER, 31, 23, 59);
         List<Sales> yearlyRevenue = salesRepository.findSalesByBranch_BusinessAndSaleDateBetween(business, startDate, endDate);
@@ -345,6 +348,10 @@ public class TaxPayerService {
         if (accountant == null)
             throw new ApiException("accountant not found");
 
+        if(taxPayer.getId()!=accountant.getBusiness().getTaxPayer().getId()){
+            throw new ApiException("tax payer not  belong to tax business");
+
+        }
         if (accountant.getIsActive())
             throw new ApiException("accountant is already active");
         accountant.setIsActive(true);
@@ -356,6 +363,11 @@ public class TaxPayerService {
     public void deActivateAccountant(Integer taxPayerId, Integer accountantId) {
         TaxPayer taxPayer = taxPayerRepository.findTaxBuyerById(taxPayerId);
         Accountant accountant = accountantRepository.findAccountantById(accountantId);
+        /// link
+        if(taxPayer.getId()!=accountant.getBusiness().getTaxPayer().getId()){
+            throw new ApiException("tax payer not  belong to tax business");
+
+        }
         if (taxPayer == null)
             throw new ApiException("tax payer not found");
         if (accountant == null)
