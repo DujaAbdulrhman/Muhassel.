@@ -53,14 +53,6 @@ public class SalesController {
         return ResponseEntity.status(HttpStatus.OK).body(new ApiException(" Sales is deleted"));
     }
 
-
-
-
-   /* @GetMapping("/sales-summary/{branchId}")
-    public ResponseEntity<Map<String, Double>> getSalesByBranch(@AuthenticationPrincipal MyUser accountant) {
-       return ResponseEntity.status(200).body(salesService.getSalesSummaryByBranch(accountant.getId()));
-    }*/
-
     // authority -> Accountant
     //sahar - 3
     @PostMapping("add-sale/{boxId}")
@@ -105,22 +97,7 @@ public class SalesController {
                 .body(pdf);
     }
 
-    /// ?????????????????????????????????
-//    @PutMappingapping("/update-product-quantity/{accountantId}/{itemSaleId}/{quantity}")
-//    public ResponseEntity updateProductQuantity(@PathVariable Integer accountantId, @PathVariable Integer itemid, @PathVariable Integer quantity) {
-//
-//        ItemSale updatedItemSale = salesService.updateProductQuantity(accountantId, itemid, quantity);
-//        return ResponseEntity.status(200).body(updatedItemSale);
-//    }
-//
-//    @GetMapping("/print-sale/{accountantId}/{saleId}")
-//    public ResponseEntity<byte[]> printInvoice(@PathVariable Integer accountantId,@PathVariable Integer saleId) {
-//        byte[] pdf = salesService.printInvoice(accountantId,saleId);
-//        return ResponseEntity.ok()
-//                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=tax-report-" + saleId + ".pdf")
-//                .contentType(MediaType.APPLICATION_PDF)
-//                .body(pdf);
-//    }
+   
 
     //DUJA-7
     @PutMapping("/update-quantity/{saleId}/{itemId}/{quantity}")
