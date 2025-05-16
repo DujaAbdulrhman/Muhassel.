@@ -399,100 +399,8 @@ public class SalesService {
         return product;
     }
 
-//    public void addProductToSales(Integer salesId, String barcode) {
-//        Sales sales = salesRepository.findSalesById(salesId);
-//        if (sales == null) {
-//            throw new ApiException("Sales not found");
-//        }
-//
-//        Product product = productRepository.findProductByBarcode(barcode);
-//        if (product==null) {
-//            throw new ApiException("Product not found with barcode: " + barcode);
-//        }
-//
-//        sales.getProducts().add(product);
-//        productRepository.save(product);
-//        salesRepository.save(sales);
-//    }
 
-
-//    public void calculateSalesAmounts(Integer salesId) {
-//        Sales sales = salesRepository.findSalesById(salesId);
-//        if (sales == null) {
-//            throw new ApiException("Sales not found");
-//        }
-//
-//        double total = 0;
-//        for (Product product : sales.getProducts()) {
-//            total += product.getPrice();
-//        }
-//
-//        double tax = total * 0.15;
-//        double grand = total + tax;
-//
-//        sales.setTotal_amount(total);
-//        sales.setTax_amount(tax);
-//        sales.setGrand_amount(grand);
-//
-//        salesRepository.save(sales);
-//    }
-
-
-
-    public Map<String, Object> addSales2(Integer counterBox_id, Integer branch_id, Sales sales) {
-        CounterBox counterBox = counterBoxRepository.findCounterBoxById(counterBox_id);
-        Branch branch = branchRepository.findBranchesById(branch_id);
-
-        if (counterBox == null || branch == null) {
-            throw new ApiException("Branch or Counter Box not found ");
-        }
-
-
-
-        sales.setDate(LocalDateTime.now());
-        LocalDate today = LocalDate.now();
-
-        List<LocalDate> discountDates = List.of(
-                LocalDate.of(2025, 5, 10),
-                LocalDate.of(2025, 5, 20)
-        );
-
-
-        double originalAmount = sales.getTotal_amount();
-        double finalAmount = originalAmount;
-        double discountPercentage = 0.20;
-        double discountAmount = 0.0;
-        boolean discountApplied = false;
-
-        if (discountDates.contains(today)) {
-            discountAmount = originalAmount * discountPercentage;
-            finalAmount = originalAmount - discountAmount;
-            discountApplied = true;
-        }
-
-
-        double tax = finalAmount * 0.15;
-        double grand = finalAmount + tax;
-
-        sales.setTotal_amount(finalAmount);
-        sales.setGrand_amount(grand);
-        salesRepository.save(sales);
-
-        Map<String, Object> result = new LinkedHashMap<>();
-
-        result.put("original_price", originalAmount);
-
-        if (discountApplied) {
-            result.put("discount_percentage", discountPercentage * 100 + "%");
-            result.put("discount_amount", discountAmount);
-            result.put("price_after_discount", finalAmount);
-        }
-
-        result.put("tax", tax);
-        result.put("grand_total", grand);
-
-        return result;
-    }
+    
 
     public List<Sales> getSalesByTaxPayerId(Integer taxPayerId) {
         return salesRepository.findSalesByTaxPayerId(taxPayerId);
@@ -506,12 +414,6 @@ public class SalesService {
     // Endpoint
     public void printSale(Integer saleId){
         Sales sales = salesRepository.findSalesById(saleId);
-    }
-
-
-    // Endpoint 33
-    public void calcuateTaxBySaleNumber(Integer salesNumber){
-
     }
 
 
