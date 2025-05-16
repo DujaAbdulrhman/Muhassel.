@@ -143,20 +143,9 @@ public class BranchService {
         for (Sales s : branch.getSales()) {
             totalRevenue = totalRevenue + s.getGrand_amount();
         }
-
-
-
-
         return totalRevenue;
     }
 
 
-
-   /*  public List<Branch> getTaxPayerBranches(Integer taxPayerId){
-        List<Branch> branches = branchRepository.findBranchesByBusinessTaxPayerId(taxPayerId);
-        if (branches.isEmpty())
-            throw new ApiException("no branches belong to this tax payer");
-        return branches;
-     }*/
 
 }
