@@ -1,384 +1,460 @@
 package com.example.final_project.Service;
 
-
 import com.example.final_project.Api.ApiException;
-import com.example.final_project.DTO.AccountantDTO;
-import com.example.final_project.DTO.TaxPayerDTO;
-import com.example.final_project.Model.Accountant;
-import com.example.final_project.Model.Business;
-import com.example.final_project.Model.TaxPayer;
-import com.example.final_project.Model.MyUser;
+import com.example.final_project.DTOOUT.TaxReportStatusDTO;
 import com.example.final_project.Model.*;
 import com.example.final_project.Notification.NotificationService;
 import com.example.final_project.Repository.*;
+import com.itextpdf.text.*;
+import com.itextpdf.text.pdf.PdfWriter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.support.JdbcAccessor;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-
-import java.util.*;
-import java.time.Month;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
 import java.util.List;
-
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+public class TaxReportsService {
 
-
-public class TaxPayerService {
-
-
-    private final TaxPayerRepository taxPayerRepository;
-    private final MyUserRepository myUserRepository;
-    private final AccountantRepository accountantRepository;
-    private final NotificationService notificationService;
+    private final TaxReportsRepository taxReportsRepository;
     private final BusinessRepository businessRepository;
+    private final AuditorRepository auditorRepository;
     private final SalesRepository salesRepository;
-
-    private final JdbcAccessor jdbcAccessor;
-
-
-    private final CounterBoxRepository counterBoxRepository;
-    private final BranchRepository branchRepository;
-    private final WhatsAppService whatsAppService;
+    private final NotificationService notificationService;
+    private final MyUserRepository myUserRepository;
+    private final TaxPayerRepository taxPayerRepository;
 
 
-    /// run by admin
-    public void activateTP(Integer adminId, Integer taxPayerId) {
-        MyUser admin = myUserRepository.findUserByIdAndRole(adminId,"ADMIN");
-        if (admin==null)
-            throw new ApiException("you don't have permission");
-        TaxPayer taxPayer = taxPayerRepository.findTaxBuyerById(taxPayerId);
-        if (taxPayer == null) {
-            throw new ApiException("Tax Payer is not found");
+
+    public List<TaxReports> getAllTaxReports(Integer id) {
+        Auditor auditor = auditorRepository.findAuditorsById(id);
+        if (auditor == null) {
+            throw new ApiException("auditor not found");
         }
-        if (taxPayer.getIsActive()) {
-            throw new ApiException("Tax Payer is already active");
-        }
-        taxPayer.setIsActive(true);
-        taxPayerRepository.save(taxPayer);
-
-
-        String subject = "Successful Activation of Your Account as a Taxpayer";
-        String message = "Dear : " + taxPayer.getMyUser().getName() + " We are pleased to inform you that your account has been successfully activated you can now use our services :\n" +
-                "Best regards,\n" +
-                "[mohasil team]";
-
-
-        notificationService.sendEmail(taxPayer.getMyUser().getEmail(), subject, message);
-
+        return taxReportsRepository.findAll();
     }
 
 
-    public List<TaxPayer> getAllTaxTaxPayers(Integer AuditId) {
-        return taxPayerRepository.findAll();
+
+    public void addTaxReports(Integer auditor_id, Integer business_id, TaxReports taxReports) {
+        Business business = businessRepository.findBusinessById(business_id);
+        Auditor auditor = auditorRepository.findAuditorsById(auditor_id);
+
+        if (auditor == null || business == null) {
+            throw new ApiException("auditor or business not found");
+        }
+        taxReports.setStatus("Pending");
+        taxReportsRepository.save(taxReports);
+    }
+
+    public void updateTaxReports(Integer id, Integer taxReportId, TaxReports taxReports) {
+        Auditor auditor = auditorRepository.findAuditorsById(id);
+        if (auditor == null)
+            throw new ApiException("Auditor not found");
+        TaxReports oldTaxReports = taxReportsRepository.findTaxReportsById(taxReportId);
+
+        if (oldTaxReports == null) {
+            throw new ApiException("TaxReports not found");
+        }
+
+        oldTaxReports.setTotalTax(taxReports.getTotalTax());
+        oldTaxReports.setStart_date(taxReports.getStart_date());
+        oldTaxReports.setEnd_date(taxReports.getEnd_date());
+        oldTaxReports.setStatus(taxReports.getStatus());
+        oldTaxReports.setPaymentDate(taxReports.getPaymentDate());
+
+        taxReportsRepository.save(oldTaxReports);
     }
 
 
-    public void register(TaxPayerDTO taxPayerDTO) {
-        MyUser user = new MyUser();
-        if (taxPayerRepository.findTaxPayerByCommercialRegistration(taxPayerDTO.getCommercialRegistration()) != null) {
-            throw new ApiException("A Taxpayer With the same commercial registration number already exit");
-
+    public void deleteTaxReports(Integer id, Integer taxReportId) {
+        MyUser admin = myUserRepository.findUserByIdAndRole(id, "ADMIN");
+        if (admin == null)
+            throw new ApiException("Auditor not found");
+        TaxReports taxReports = taxReportsRepository.findTaxReportsById(taxReportId);
+        if (taxReports == null) {
+            throw new ApiException("Tax Reports not found");
         }
-        user.setRole("TAXPAYER");
-        user.setName(taxPayerDTO.getName());
-        user.setUsername(taxPayerDTO.getUsername());
-        String hashPassword = new BCryptPasswordEncoder().encode(taxPayerDTO.getPassword());
-        user.setPassword(hashPassword);
-        user.setEmail(taxPayerDTO.getEmail());
+        taxReportsRepository.delete(taxReports);
+    }
 
+    // Khalid almutiri
+    public void applyLatePaymentPenalty(Integer id, Integer taxReportId) {
+        Auditor auditor = auditorRepository.findAuditorsById(id);
+        if (auditor == null)
+            throw new ApiException("Auditor not found");
+        TaxReports taxReport = taxReportsRepository.findTaxReportsById(taxReportId);
 
-        TaxPayer taxPayer = new TaxPayer();
-        taxPayer.setPhoneNumber(taxPayerDTO.getPhoneNumber());
-        taxPayer.setCommercialRegistration(taxPayerDTO.getCommercialRegistration());
+        if (taxReport == null) {
+            throw new ApiException("Tax report not found");
+        }
 
+        if (!taxReport.getStatus().equals("Approved")) {
+            throw new ApiException("Penalty applies only to approved tax reports");
+        }
 
-        taxPayer.setMyUser(user);
-        taxPayer.setIsActive(false);
-        taxPayer.setCommercialRegistration(taxPayerDTO.getCommercialRegistration());
-        taxPayer.setPhoneNumber(taxPayerDTO.getPhoneNumber());
+        if (taxReport.getPaymentDate() == null) {
+            throw new ApiException("Payment date is missing");
+        }
 
-        taxPayer.setRegistrationDate(LocalDateTime.now());
-        user.setTaxPayer(taxPayer);
+        LocalDate approvalDate = taxReport.getEnd_date().toLocalDate();
+        LocalDate dueDate = approvalDate.plusMonths(1);
+        LocalDate today = LocalDate.now();
 
-        taxPayerRepository.save(taxPayer);
-        myUserRepository.save(user);
-
+        if (today.isAfter(dueDate)){
+            Double penalty = taxReport.getTotalTax() * 0.05;
+            taxReport.setTotalTax(taxReport.getTotalTax() + penalty);
+            taxReportsRepository.save(taxReport);
+        } else {
+            throw new ApiException("No penalty: payment is still within grace period");
+        }
+        String emailTo = taxReport.getBusiness().getTaxPayer().getMyUser().getEmail();
+        String name = taxReport.getBusiness().getTaxPayer().getMyUser().getName();
+        String message = "Dear"+name+"\n\n Due to your failure to " +
+                "pay the value-added tax and your delay of one month, " +
+                "a financial penalty has been imposed, " +
+                "which is 5% of the total amount due.";
+        notificationService.sendEmail(emailTo,"Due to VAT Non-Payment\n" +
+                "\n",message);
     }
 
 
-    public void updateTaxPayer(Integer taxPayerId, TaxPayerDTO taxPayerDTO) {
+    // Khalid almutiri
+    public void applyTwoMonthLatePenalty(Integer id, Integer taxReportId) {
+        Auditor auditor = auditorRepository.findAuditorsById(id);
+        if (auditor == null)
+            throw new ApiException("Auditor not found");
 
-        TaxPayer taxPayer = taxPayerRepository.findTaxBuyerById(taxPayerId);
+        TaxReports taxReport = taxReportsRepository.findTaxReportsById(taxReportId);
 
-        if (taxPayer == null) {
-            throw new ApiException("The Taxpayer is not found");
+        if (taxReport == null) {
+            throw new ApiException("Tax report not found");
         }
 
-        taxPayer.getMyUser().setEmail(taxPayerDTO.getEmail());
-        taxPayer.getMyUser().setUsername(taxPayerDTO.getUsername());
-        String hashPassword = new BCryptPasswordEncoder().encode(taxPayerDTO.getPassword());
-        taxPayer.getMyUser().setPassword(hashPassword);
+        if (!taxReport.getStatus().equals("Approved")) {
+            throw new ApiException("Penalty applies only to approved tax reports");
+        }
+
+        if (taxReport.getPaymentDate() == null || taxReport.getEnd_date() == null) {
+            throw new ApiException("Missing payment or approval date");
+        }
+
+        LocalDate endDate = taxReport.getEnd_date().toLocalDate();
+        LocalDate twoMonthDue = endDate.plusMonths(2);
+        LocalDate today = LocalDate.now();
+
+        if (today.isBefore(twoMonthDue)) {
+            throw new ApiException("No penalty: Two months have not passed since end date");
+        }
+
+        double originalTax = taxReport.getTotalTax();
+        double penalty = originalTax * 0.10;
+        taxReport.setTotalTax(originalTax + penalty);
 
 
-        taxPayer.setPhoneNumber(taxPayerDTO.getPhoneNumber());
-        taxPayer.setCommercialRegistration(taxPayerDTO.getCommercialRegistration());
+        String emailTo = taxReport.getBusiness().getTaxPayer().getMyUser().getEmail();
+        String name = taxReport.getBusiness().getTaxPayer().getMyUser().getName();
+        String message = "Dear"+name+"\n\n Due to your failure to " +
+                "pay the value-added tax and your delay of two month, " +
+                "a financial penalty has been imposed, " +
+                "which is 10% of the total amount due.";
+        notificationService.sendEmail(emailTo,"Due to VAT Non-Payment\n" +
+                "\n",message);
 
-        taxPayerRepository.save(taxPayer);
-
+        taxReportsRepository.save(taxReport);
     }
 
 
-    public void deleteTaxPayer(Integer taxPayerId) {
+    // Khalid almutiri
+    public void applyLegalActionForTaxEvasion(Integer id, Integer taxReportId) {
+        Auditor auditor = auditorRepository.findAuditorsById(id);
+        if (auditor == null)
+            throw new ApiException("Auditor not found");
 
-        TaxPayer taxPayer = taxPayerRepository.findTaxBuyerById(taxPayerId);
-        if (taxPayer == null) {
-            throw new ApiException("The Taxpayer is not found");
-        }
-        myUserRepository.delete(taxPayer.getMyUser());
-    }
-
-
-    public void addAccountant(Integer taxPayerID, Integer businessId, AccountantDTO accountantDTO) {
-        TaxPayer taxPayer = taxPayerRepository.findTaxBuyerById(taxPayerID);
-        if (taxPayer == null) {
-            throw new ApiException("The Taxpayer is not found");
-        }
-        Business business1 = businessRepository.findBusinessByIdAndTaxPayer(businessId, taxPayer);
-        if (business1 == null) {
-            throw new ApiException("Business is not found or does not belong to tax payer");
+        TaxReports taxReport = taxReportsRepository.findTaxReportsById(taxReportId);
+        if (taxReport == null) {
+            throw new ApiException("Tax report not found");
         }
 
-        MyUser myUserACC = new MyUser();
-        myUserACC.setRole("ACCOUNTANT");
-        myUserACC.setName(accountantDTO.getName());
-        myUserACC.setUsername(accountantDTO.getUsername());
-        String hashPassword = new BCryptPasswordEncoder().encode(accountantDTO.getPassword());
-        myUserACC.setPassword(hashPassword);
-        myUserACC.setEmail(accountantDTO.getEmail());
+        if (!taxReport.getStatus().equals("Approved")) {
+            throw new ApiException("Legal action applies only to approved tax reports");
+        }
 
-        Accountant accountant = new Accountant();
-        accountant.setEmployeeId(accountantDTO.getEmployeeId());
-        accountant.setRegistrationDate(LocalDateTime.now());
-        accountant.setPhoneNumber(accountantDTO.getPhoneNumber());
-        accountant.setMyUser(myUserACC);
-        accountant.setIsActive(true);
-        accountant.setBusiness(business1);
-        myUserACC.setAccountant(accountant);
-        accountantRepository.save(accountant);
-        myUserRepository.save(myUserACC);
+        if (taxReport.getEnd_date() == null) {
+            throw new ApiException("Missing end date");
+        }
 
+        LocalDate endDate = taxReport.getEnd_date().toLocalDate();
+        LocalDate legalDeadline = endDate.plusDays(90);
+        LocalDate today = LocalDate.now();
 
-        String subject = "Successful Activation of Your Account";
-        String message = "We are pleased to inform you that your account has been successfully activated with the authority of an Accountant. Below are your login details:\n" +
+        boolean unpaid = (taxReport.getPaymentDate() == null || taxReport.getPaymentDate().isAfter(legalDeadline));
+
+        if (today.isAfter(legalDeadline) && unpaid) {
+            taxReport.setStatus("Under Legal Action");
+            taxReportsRepository.save(taxReport);
+        } else {
+            throw new ApiException("Conditions for legal action not met");
+        }
+
+        String emailTo = taxReport.getBusiness().getTaxPayer().getMyUser().getEmail();
+        String name = taxReport.getBusiness().getTaxPayer().getMyUser().getName();
+        String message = "Dear "+name+"\n\n  " +
+                "We regret to inform you that, due to your failure to settle the due value-added tax (VAT) \n" +
+                "and a delay exceeding three months, your case has been officially referred for legal action and the initiation of a lawsuit. \n" +
+                "Please be advised that, in addition to the outstanding tax amount, you will also be held responsible for all associated legal costs.\n" +
                 "\n" +
-                "Username: \n" + accountant.getMyUser().getUsername() +
-                "\n" +
-                "Password:\n" + accountantDTO.getPassword() +
-                "\n" +
-                "Employee Code:\n" + accountant.getEmployeeId() +
-                "\n" +
-                "Please keep this information secure and do not share it with anyone." +
-                "\n note: Inactive accounts will be deleted in 30 \n" +
-                "\n" +
-                "If you have any questions or need assistance, feel free to contact us.\n" +
-                "\n" +
-                "Best regards,\n" +
-                "[mohasil team]";
-
-
-        String phone = accountantDTO.getPhoneNumber();
-        if (phone.startsWith("0")) {
-            phone = phone.substring(1);
-        }
-        String fullPhoneNumber = "966" + phone;
-
-        whatsAppService.sendAccountantActivationMessage(
-                accountantDTO.getUsername(),
-                accountantDTO.getPassword(),
-                accountantDTO.getEmployeeId(),
-                fullPhoneNumber,
-                LocalDate.now()
-        );
-
-
-
-        notificationService.sendEmail(accountant.getMyUser().getEmail(), subject, message);
+                "Sincerely,";
+        notificationService.sendEmail(emailTo,"Due to VAT Non-Payment\n" +
+                "\n",message);
     }
 
 
 
+    // Khalid almutiri
+    public void changeTaxReportStatus(Integer taxReportId, Integer auditorId, TaxReportStatusDTO taxReportStatusDTO) {
+        TaxReports taxReport = taxReportsRepository.findTaxReportsById(taxReportId);
 
-
-    public void notify20daysInactivity(Integer accountantId){
-        Accountant accountant = accountantRepository.findAccountantByIsActiveAndId(true, accountantId);
-        if (accountant == null) {
-            throw new ApiException("Accountant is not found or not active");
+        if (taxReport == null) {
+            throw new ApiException("Tax report not found");
         }
-        String subject = "Warning ! Inactivity Detected ";
-        String message = "Dear : " + accountant.getMyUser().getName() + " We have noticed that your account has been inactive for over 20 days since registration ." +
-                "please ensure you resume activity within the next 10 days to avoid deactivation \n" +
-                "Best regards,\n" +
-                "[mohasil team]";
+        Auditor auditor = auditorRepository.findAuditorsById(auditorId);
+        if (auditor == null) {
+            throw new ApiException("Auditor not found");
+        }
 
-        notificationService.sendEmail(accountant.getMyUser().getEmail(), subject, message);
+
+        if (taxReport.getAuditor() == null || !taxReport.getAuditor().getId().equals(auditorId)) {
+            throw new ApiException("This report does not belong to the specified auditor");
+        }
+
+        List<String> allowedStatuses = List.of("Pending", "Approved", "Paid", "Under Legal Action", "Rejected");
+        if (!allowedStatuses.contains(taxReportStatusDTO.getNewStatus())) {
+            throw new ApiException("Invalid status value");
+        }
+
+        taxReport.setStatus(taxReportStatusDTO.getNewStatus());
+        taxReportsRepository.save(taxReport);
+    }
+
+
+    // Khalid almutiri
+    public List<TaxReports> getUnpaidDueTaxReports(Integer id) {
+        Auditor auditor = auditorRepository.findAuditorsById(id);
+        if (auditor == null)
+            throw new ApiException("Auditor not found");
+        return taxReportsRepository.findAllByPaymentDateIsNotNullAndStatusNot("Paid");
     }
 
 
 
-
-
-
-    /// if accountant has not opened since the register date or not opened for a 30 days
-    public void blockUnnActiveAccountant(Integer taxPayerId, Integer accountantId) {
-        TaxPayer taxPayer = taxPayerRepository.findTaxBuyerById(taxPayerId);
-        if (taxPayer == null) {
-            throw new ApiException("The Taxpayer is not found");
+    // Khalid almutiri
+    public List<TaxReports> getReportsByAuditor(Integer auditorId) {
+        Auditor auditor = auditorRepository.findAuditorsById(auditorId);
+        if (auditor == null) {
+            throw new ApiException("Auditor not found");
         }
+        return taxReportsRepository.findAllByAuditorId(auditorId);
+    }
 
-        Accountant accountant = accountantRepository.findAccountantByIsActiveAndId(true, accountantId);
-        if (accountant == null) {
-            throw new ApiException("Accountant is not found or not active");
+
+    // Khalid almutiri
+    public Long getReportCountByStatus(Integer auditorId, String status) {
+        Auditor auditor = auditorRepository.findAuditorsById(auditorId);
+        if (auditor == null) {
+            throw new ApiException("Auditor not found");
         }
+        return taxReportsRepository.countByAuditorIdAndStatus(auditorId, status);
+    }
 
-        if(taxPayer.getId()!=accountant.getBusiness().getTaxPayer().getId()){
-            throw new ApiException("tax payer not  belong to tax business");
+    // Khalid almutiri
+    public Double getApprovalRate(Integer auditorId) {
+        Auditor auditor = auditorRepository.findAuditorsById(auditorId);
+        if (auditor == null)
+            throw new ApiException("auditor not found");
+        Long total = taxReportsRepository.countByAuditorId(auditorId);
+        Long approved = taxReportsRepository.countByAuditorIdAndStatus(auditorId, "Approved");
 
-        }
-        Business business = businessRepository.findBusinessByIdAndTaxPayer(accountant.getBusiness().getId(), taxPayer);
-        if (!business.getIsActive()) {
-            throw new ApiException("Your business that is related to this branch is not active");
-        }
+        if (total == 0) return 0.0;
 
-
-
-        LocalDateTime activeDate=accountant.getLastActiveCounterBox();
-        LocalDateTime thirtyDays=LocalDateTime.now().minusDays(30);
-        LocalDateTime twentyDays=LocalDateTime.now().minusDays(20);
+        return (approved * 100.0) / total;
+    }
 
 
-        /// 1 check if the accountant never logged since registration
-        if (activeDate == null) {
-            /// 30 days since registration and non activity
-            if (accountant.getRegistrationDate().isBefore(thirtyDays)) {
-                accountant.setIsActive(false);
-                accountantRepository.save(accountant);
-                throw new ApiException("The accountant has never been active!");
+    // Khalid almutiri
+    public void bulkApproveReports(Integer auditorId, List<Integer> reportIds) {
+        for (Integer reportId : reportIds) {
+            TaxReports taxReport = taxReportsRepository.findTaxReportsById(reportId);
+            if (taxReport != null && taxReport.getAuditor() != null &&
+                    taxReport.getAuditor().getId().equals(auditorId)) {
 
-            }else if (accountant.getRegistrationDate().isBefore(twentyDays)){///  20 days non active
-                notify20daysInactivity(accountantId);
-                throw new ApiException("The accountant is been inactive for 20 days , accountant has been notified");
+                taxReport.setStatus("Approved");
+                taxReportsRepository.save(taxReport);
             }
         }
-
-
-        /// / if the accountant is active but not for 20 daya
-
-        if(activeDate!=null && activeDate.isBefore(thirtyDays)){
-            accountant.setIsActive(false);
-            accountantRepository.save(accountant);
-
-        }else if(activeDate!=null && activeDate.isBefore(twentyDays)){
-            notify20daysInactivity(accountantId);
-            throw new ApiException("The accountant is been inactive for 20 days , accountant has been notified");
-
-        }
     }
 
-    // Displays all accountants associated with the TB across all branches affiliated with him
-    public List<Map<String, Object>> getAccountantsByTaxPayerId (Integer taxPayerId){
-        List<Object[]> rows = accountantRepository.findAccountantsByTaxPayerId(taxPayerId);
-        List<Map<String, Object>> result = new ArrayList<>();
-
-        for (Object[] row : rows) {
-            Map<String, Object> map = new LinkedHashMap<>();
-            map.put("taxPayerId", row[0]);
-            map.put("commercialRegistration", row[1]);
-            map.put("employeeId", row[2]);
-            map.put("isActive", row[3]);
-            map.put("branchId", row[4]);
-            result.add(map);
+    // Khalid almutiri
+    public TaxReports getLatestReportByAuditor(Integer auditorId) {
+        Auditor auditor = auditorRepository.findAuditorsById(auditorId);
+        if (auditor == null)
+            throw new ApiException("Auditor not found");
+        List<TaxReports> reports = taxReportsRepository.findTopByAuditorIdOrderByEnd_dateDesc(auditorId);
+        if (reports.isEmpty()) {
+            throw new ApiException("No reports found for auditor");
         }
+        return reports.get(0);
+    }
+
+
+
+    public List<TaxReports> printTaxReportForEveryBusinesses(Integer taxPayerId) {
+        TaxPayer taxPayer = taxPayerRepository.findTaxBuyerById(taxPayerId);
+        if (taxPayer == null)
+            throw new ApiException("Tax Payer not found");
+        List<TaxReports> taxReports = taxReportsRepository.findTaxReportsByTaxPayer(taxPayerId);
+        if (taxReports.isEmpty())
+            throw new ApiException("you don't have any tax reports");
+        return taxReports;
+    }
+
+
+    // Khalid almutiri
+    public List<TaxReports> getUnapprovedTaxReports(Integer auditorId) {
+        Auditor auditor = auditorRepository.findAuditorsById(auditorId);
+        if (auditor == null)
+            throw new ApiException("Auditor not found");
+        return taxReportsRepository.findAllUnapproved();
+    }
+
+
+
+    public Map<String, Object> getPaymentStatusByReportId(Integer taxPayerId, Integer reportId) {
+        TaxPayer taxPayer = taxPayerRepository.findTaxBuyerById(taxPayerId);
+        if (taxPayer == null)
+            throw new ApiException("Tax Payer not found");
+        TaxReports report = taxReportsRepository.findTaxReportsById(reportId);
+        if (report == null) {
+            throw new ApiException("Tax report not found");
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("reportId ", report.getId());
+        result.put("paymentStatus ", report.getStatus());
 
         return result;
     }
 
+    public void notifyUpcomingPayments() {
+        List<TaxReports> reports = taxReportsRepository.findAll();
+        LocalDate today = LocalDate.now();
 
-    public Double getYearRevenue (Integer taxPayerId, Integer businessId,int year){
+        for (TaxReports report : reports) {
+            if (report.getStatus().equalsIgnoreCase("Paid")) continue;
 
-        TaxPayer taxPayer = taxPayerRepository.findTaxBuyerById(taxPayerId);
-        if (taxPayer == null) {
-            throw new ApiException("The Taxpayer is not found");
+            LocalDate paymentDate = report.getPaymentDate();
+            if (paymentDate != null) {
+                long daysLeft = ChronoUnit.DAYS.between(today, paymentDate);
+
+                if (daysLeft <= 3 && daysLeft >= 0) {
+                    Business business = report.getBusiness();
+                    if (business == null || business.getTaxPayer() == null) continue;
+
+                    String email = business.getTaxPayer().getMyUser().getEmail();
+                    String subject = " Payment Reminder - Tax Report #" + report.getId();
+                    String message = "Dear Taxpayer,\n\nThis is a reminder that the tax report (ID: " + report.getId() +
+                            ") is due for payment on " + paymentDate + ".\n\n" +
+                            "Please make the payment on time to avoid any legal consequences.\n\n" +
+                            "Regards,\nMohasil Team";
+
+                    notificationService.sendEmail(email, subject, message);
+                }
+            }
         }
-
-        Business business = businessRepository.findBusinessById(businessId);
-        if (!business.getIsActive()) {
-            throw new ApiException("The business is not found");
-        }
-
-
-        LocalDateTime startDate = LocalDateTime.of(year, Month.JANUARY, 1, 0, 0);
-        LocalDateTime endDate = LocalDateTime.of(year, Month.DECEMBER, 31, 23, 59);
-        List<Sales> yearlyRevenue = salesRepository.findSalesByBranch_BusinessAndSaleDateBetween(business, startDate, endDate);
-
-        if (yearlyRevenue.isEmpty()) {
-            throw new ApiException("No sales found for this business");
-
-        }
-        Double totalR = 0.0;
-        for (Sales s : yearlyRevenue) {
-            totalR += s.getGrand_amount();
-
-        }
-        return totalR;
-
     }
 
-    // Ali Ahmed Alshehri
-    // Endpoint 40
-    public void activateAccountant(Integer taxPayerId, Integer accountantId) {
-        TaxPayer taxPayer = taxPayerRepository.findTaxBuyerById(taxPayerId);
-        Accountant accountant = accountantRepository.findAccountantById(accountantId);
-        if (taxPayer == null)
-            throw new ApiException("tax payer not found");
-        if (accountant == null)
-            throw new ApiException("accountant not found");
 
-        if(taxPayer.getId()!=accountant.getBusiness().getTaxPayer().getId()){
-            throw new ApiException("tax payer not  belong to tax business");
+    public byte[] getTaxReportAsPdf(Integer userId, Integer reportId) {
+        MyUser myUser = myUserRepository.findUserByIdAndRole(userId, "TAXPAYER");
+        if (myUser == null)
+            throw new ApiException("User not found or doesn't have permission");
+        TaxReports report = taxReportsRepository.findTaxReportsById(reportId);
+        if (report == null) throw new ApiException("Tax report not found.");
 
+        if (!report.getBusiness().getTaxPayer().getId().equals(userId)) {
+            throw new ApiException("You don't have access to this tax report!");
         }
-        if (accountant.getIsActive())
-            throw new ApiException("accountant is already active");
-        accountant.setIsActive(true);
-        accountantRepository.save(accountant);
+
+
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            Document document = new Document();
+            PdfWriter.getInstance(document, baos);
+            document.open();
+
+
+            try {
+                InputStream is = getClass().getResourceAsStream("/logo.png");
+                if (is != null) {
+                    Image logo = Image.getInstance(is.readAllBytes());
+                    logo.scaleToFit(120, 120);
+                    logo.setAlignment(Element.ALIGN_CENTER);
+                    document.add(logo);
+                    document.add(Chunk.NEWLINE);
+                }
+            } catch (Exception e) {
+                System.out.println("Logo not found or failed to load.");
+            }
+
+
+            Paragraph title = new Paragraph("TAX REPORT SUMMARY", new Font(Font.FontFamily.HELVETICA, 18, Font.BOLD));
+            title.setAlignment(Element.ALIGN_CENTER);
+            document.add(title);
+            document.add(Chunk.NEWLINE);
+
+
+            document.add(new Paragraph("Generated on: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))));
+
+            document.add(new Paragraph("------------------------------------------------------------"));
+
+            document.add(new Paragraph("Report ID: " + report.getId()));
+            document.add(new Paragraph("Status: " + report.getStatus()));
+            document.add(new Paragraph("Tax Amount: " + report.getTotalTax() + " SAR"));
+            document.add(new Paragraph("Payment Due: " + report.getPaymentDate()));
+            document.add(new Paragraph("Report Period:"));
+            document.add(new Paragraph("   • From: " + report.getStart_date()));
+            document.add(new Paragraph("   • To  : " + report.getEnd_date()));
+            document.add(new Paragraph("Created At: " + LocalDateTime.now()));
+
+            if (report.getBusiness() != null) {
+                document.add(new Paragraph("Business Name: " + report.getBusiness().getBusinessName()));
+            }
+
+            document.add(new Paragraph("------------------------------------------------------------"));
+            document.add(Chunk.NEWLINE);
+
+
+            document.add(new Paragraph("This document summarizes your tax obligations as submitted."));
+            document.add(new Paragraph("Please ensure payment is completed before the due date to avoid penalties."));
+            document.add(Chunk.NEWLINE);
+            document.add(new Paragraph("Signature: ___________________________"));
+            document.add(new Paragraph("Mohasil Team", new Font(Font.FontFamily.HELVETICA, 10, Font.ITALIC)));
+
+            document.close();
+            return baos.toByteArray();
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate PDF", e);
+        }
     }
 
-    // Ali Ahmed Alshehri
-    // Endpoint 41
-    public void deActivateAccountant(Integer taxPayerId, Integer accountantId) {
-        TaxPayer taxPayer = taxPayerRepository.findTaxBuyerById(taxPayerId);
-        Accountant accountant = accountantRepository.findAccountantById(accountantId);
-        /// link
-        if(taxPayer.getId()!=accountant.getBusiness().getTaxPayer().getId()){
-            throw new ApiException("tax payer not  belong to tax business");
-
-        }
-        if (taxPayer == null)
-            throw new ApiException("tax payer not found");
-        if (accountant == null)
-            throw new ApiException("accountant not found");
-
-        if (!accountant.getIsActive())
-            throw new ApiException("accountant is already non active");
-
-        accountant.setIsActive(false);
-        accountantRepository.save(accountant);
-    }
 
 }
-
